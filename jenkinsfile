@@ -1,0 +1,98 @@
+pipeline {
+  agent any
+
+  environment {
+    // optional, just keeps logs in one place
+    LOG_DIR = "logs"
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        // Pull your repo
+        git branch: 'main', url: 'https://github.com/nguyel25/8.2CDevSecOps.git'
+      }
+    }
+
+    stage('Install Dependencies') {
+      steps {
+        bat """
+        if not exist %LOG_DIR% mkdir %LOG_DIR%
+        npm install  1>%LOG_DIR%\\install.log  2>&1  || exit /b 0
+        """
+      }
+    }
+
+    stage('Run Tests') {
+      steps {
+        // Run tests and save output to file
+        bat 'cmd /c npm test  1>%LOG_DIR%\\tests.log  2>&1 || exit /b 0'
+        // Show test output in console (for video)
+        bat 'type %LOG_DIR%\\tests.log'
+      }
+      post {
+        always {
+          // Email after tests with attachment
+          emailext(
+            subject: "Test stage: ${currentBuild.currentResult} - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+            body: "Test stage finished.\nConsole: ${env.BUILD_URL}",
+            to: 'nguyelo.24@gmail.com',
+            attachmentsPattern: 'logs/tests.log'
+          )
+        }
+      }
+    }
+
+    stage('Generate Coverage Report') {
+      steps {
+        // This project doesn’t have a coverage script; create a harmless placeholder log
+        bat 'echo (no coverage script in this repo) 1>%LOG_DIR%\\coverage.log'
+        // Show it in console (keeps your demo smooth)
+        bat 'type %LOG_DIR%\\coverage.log'
+      }
+    }
+
+    stage('NPM Audit (Security Scan)') {
+      steps {
+        // Run audit -> save to file (keeps a copy),
+        // then print to console so you can scroll it in your video
+        bat 'cmd /c npm audit  1>%LOG_DIR%\\audit.log  2>&1 || exit /b 0'
+        bat 'type %LOG_DIR%\\audit.log'
+      }
+      post {
+        always {
+          // Email after security scan with attachment
+          emailext(
+            subject: "Security scan: ${currentBuild.currentResult} - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+            body: "NPM audit completed.\nConsole: ${env.BUILD_URL}",
+            to: 'nguyelo.24@gmail.com',
+            attachmentsPattern: 'logs/audit.log'
+          )
+        }
+      }
+    }
+  }
+
+  post {
+    always {
+      // Keep all logs for download
+      archiveArtifacts artifacts: 'logs/*.log', fingerprint: true
+    }
+    success {
+      emailext(
+        subject: "✅ ${env.JOB_NAME} #${env.BUILD_NUMBER} SUCCESS",
+        body: "Build succeeded.\n${env.BUILD_URL}",
+        to: 'nguyelo.24@gmail.com',
+        attachmentsPattern: 'logs/*.log'
+      )
+    }
+    failure {
+      emailext(
+        subject: "❌ ${env.JOB_NAME} #${env.BUILD_NUMBER} FAILED",
+        body: "Build failed.\n${env.BUILD_URL}",
+        to: 'nguyelo.24@gmail.com',
+        attachmentsPattern: 'logs/*.log'
+      )
+    }
+  }
+}

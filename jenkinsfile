@@ -8,7 +8,6 @@ pipeline {
   stages {
     stage('Checkout') {
       steps {
-        // Repo pulled here
         git branch: 'main', url: 'https://github.com/nguyel25/8.2CDevSecOps.git'
       }
     }
@@ -24,11 +23,14 @@ pipeline {
 
     stage('Run Tests') {
       steps {
+        // Run tests and save output to file
         bat 'cmd /c npm test  1>%LOG_DIR%\\tests.log  2>&1 || exit /b 0'
+        // Show test output in console (for video)
         bat 'type %LOG_DIR%\\tests.log'
       }
       post {
         always {
+          // Email after tests with attachment
           emailext(
             subject: "Test stage: ${currentBuild.currentResult} - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
             body: "Test stage finished.\nConsole: ${env.BUILD_URL}",
@@ -48,11 +50,14 @@ pipeline {
 
     stage('NPM Audit (Security Scan)') {
       steps {
+        // Run audit -> save to file
+        // then print to console
         bat 'cmd /c npm audit  1>%LOG_DIR%\\audit.log  2>&1 || exit /b 0'
         bat 'type %LOG_DIR%\\audit.log'
       }
       post {
         always {
+                      // Email after security scan with attachment
           emailext(
             subject: "Security scan: ${currentBuild.currentResult} - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
             body: "NPM audit completed.\nConsole: ${env.BUILD_URL}",
@@ -66,6 +71,7 @@ pipeline {
 
   post {
     always {
+        // Keep all logs
       archiveArtifacts artifacts: 'logs/*.log', fingerprint: true
     }
     success {
